@@ -1969,7 +1969,7 @@
   <!-- ====== FIREBASE SDK (CDN) ====== -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+    import { getAuth, GoogleAuthProvider, signInWithRedirect, signOut, onAuthStateChanged, getRedirectResult } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
     import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
     const FIREBASE_CONFIG = {
@@ -2049,7 +2049,7 @@
 
     // ─── 로그인/로그아웃 (전역 노출) ─────────────────────────────────────────────
     window.__midextLogin = async () => {
-      try { await signInWithPopup(auth, provider); } catch (e) { console.warn('login error', e); }
+      try { await signInWithRedirect(auth, provider); } catch (e) { console.warn('login error', e); }
     };
     window.__midextLogout = async () => {
       try { await signOut(auth); } catch (e) { console.warn('logout error', e); }
@@ -2093,6 +2093,9 @@
         alert('오류가 발생했습니다.');
       }
     };
+
+    // ─── 리디렉트 로그인 결과 처리 ────────────────────────────────────────────────
+    getRedirectResult(auth).catch(e => console.warn('redirect result error', e));
 
     // ─── Auth 상태 감지 ──────────────────────────────────────────────────────────
     onAuthStateChanged(auth, async (user) => {
