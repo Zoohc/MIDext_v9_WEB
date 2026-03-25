@@ -131,6 +131,24 @@ app.post('/api/webhook/polar', async (req, res) => {
   }
 });
 
+// ─── Firebase Auth Handler 프록시 (3rd party cookie 문제 해결) ─────────────────
+const FIREBASE_AUTH_DOMAIN = 'midext-373e5.firebaseapp.com';
+app.get('/__/auth/*', async (req, res) => {
+  try {
+    const url = `https://${FIREBASE_AUTH_DOMAIN}${req.originalUrl}`;
+    const response = await fetch(url, {
+      headers: { 'Accept': req.headers.accept || '*/*' },
+    });
+    const contentType = response.headers.get('content-type');
+    if (contentType) res.setHeader('Content-Type', contentType);
+    const body = await response.text();
+    res.status(response.status).send(body);
+  } catch (e) {
+    console.error('[Auth Proxy] error:', e.message);
+    res.status(502).send('Auth proxy error');
+  }
+});
+
 // ─── 정적 파일 서빙 ───────────────────────────────────────────────────────────
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
