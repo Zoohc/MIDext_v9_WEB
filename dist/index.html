@@ -1969,12 +1969,12 @@
   <!-- ====== FIREBASE SDK (CDN) ====== -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-    import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged, getRedirectResult } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+    import { getAuth, GoogleAuthProvider, signInWithCredential, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
     import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
     const FIREBASE_CONFIG = {
       apiKey: 'AIzaSyCEBDha1VrHLDk3qu0t1Gb1Z991O-aOErU',
-      authDomain: 'midextv9web-production.up.railway.app',
+      authDomain: 'midext-373e5.firebaseapp.com',
       projectId: 'midext-373e5',
       storageBucket: 'midext-373e5.firebasestorage.app',
       messagingSenderId: '35231798540',
@@ -1984,9 +1984,31 @@
 
     const fbApp = initializeApp(FIREBASE_CONFIG);
     const auth = getAuth(fbApp);
-    const provider = new GoogleAuthProvider();
     // Default Firestore DB
     const db = getFirestore(fbApp);
+
+    // ─── Google Identity Services (GIS) 초기화 ──────────────────────────────────
+    const GOOGLE_CLIENT_ID = '35231798540-jg25scge947j87p3ddv2d413j7c7fk2j.apps.googleusercontent.com';
+    function loadGIS() {
+      return new Promise((resolve) => {
+        if (window.google?.accounts?.id) return resolve();
+        const s = document.createElement('script');
+        s.src = 'https://accounts.google.com/gsi/client';
+        s.onload = () => resolve();
+        document.head.appendChild(s);
+      });
+    }
+    loadGIS().then(() => {
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (response) => {
+          try {
+            const credential = GoogleAuthProvider.credential(response.credential);
+            await signInWithCredential(auth, credential);
+          } catch (e) { console.error('GIS login error', e); }
+        },
+      });
+    });
 
     // ─── 전역 상태 ────────────────────────────────────────────────────────────────
     window.__midextAuth = { user: null, profile: null, loading: true };
@@ -2062,14 +2084,27 @@
     }
 
     // ─── 로그인/로그아웃 (전역 노출) ─────────────────────────────────────────────
-    window.__midextLogin = async () => {
-      try {
-        await signInWithPopup(auth, provider);
-      } catch (e) {
-        console.warn('popup login failed, trying redirect...', e.code);
-        if (e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request' || e.code === 'auth/unauthorized-domain') {
-          try { await signInWithRedirect(auth, provider); } catch (e2) { console.error('redirect login also failed', e2); }
-        }
+    window.__midextLogin = () => {
+      if (window.google?.accounts?.id) {
+        google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            // One Tap 안 뜨면 팝업 방식으로 폴백
+            google.accounts.oauth2.initCodeClient({
+              client_id: GOOGLE_CLIENT_ID,
+              scope: 'openid email profile',
+              ux_mode: 'popup',
+              callback: () => {},
+            });
+            // 직접 버튼 렌더링 대신 prompt 재시도
+            const btn = document.createElement('div');
+            btn.id = '_gis_tmp';
+            btn.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;';
+            document.body.appendChild(btn);
+            google.accounts.id.renderButton(btn, { theme: 'outline', size: 'large', text: 'signin_with', width: 300 });
+            btn.querySelector('[role="button"]')?.click();
+            setTimeout(() => btn.remove(), 500);
+          }
+        });
       }
     };
     window.__midextLogout = async () => {
@@ -2114,9 +2149,6 @@
         alert('오류가 발생했습니다.');
       }
     };
-
-    // ─── 리디렉트 로그인 결과 처리 ────────────────────────────────────────────────
-    getRedirectResult(auth).catch(e => console.warn('redirect result error', e));
 
     // ─── Auth 상태 감지 ──────────────────────────────────────────────────────────
     onAuthStateChanged(auth, async (user) => {
